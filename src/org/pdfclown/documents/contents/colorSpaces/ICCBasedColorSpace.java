@@ -28,7 +28,6 @@ package org.pdfclown.documents.contents.colorSpaces;
 import java.awt.Paint;
 import java.awt.color.ICC_ColorSpace;
 import java.awt.color.ICC_Profile;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.pdfclown.PDF;
@@ -37,10 +36,8 @@ import org.pdfclown.bytes.IBuffer;
 import org.pdfclown.documents.Document;
 import org.pdfclown.documents.contents.IContentContext;
 import org.pdfclown.objects.PdfArray;
-import org.pdfclown.objects.PdfDataObject;
 import org.pdfclown.objects.PdfDirectObject;
 import org.pdfclown.objects.PdfNumber;
-import org.pdfclown.objects.PdfReal;
 import org.pdfclown.objects.PdfStream;
 import org.pdfclown.util.NotImplementedException;
 
