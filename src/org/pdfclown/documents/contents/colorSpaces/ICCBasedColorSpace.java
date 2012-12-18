@@ -28,6 +28,7 @@ package org.pdfclown.documents.contents.colorSpaces;
 import java.awt.Paint;
 import java.awt.color.ICC_ColorSpace;
 import java.awt.color.ICC_Profile;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.pdfclown.PDF;
@@ -38,6 +39,8 @@ import org.pdfclown.documents.contents.IContentContext;
 import org.pdfclown.objects.PdfArray;
 import org.pdfclown.objects.PdfDataObject;
 import org.pdfclown.objects.PdfDirectObject;
+import org.pdfclown.objects.PdfNumber;
+import org.pdfclown.objects.PdfReal;
 import org.pdfclown.objects.PdfStream;
 import org.pdfclown.util.NotImplementedException;
 
@@ -70,19 +73,11 @@ public final class ICCBasedColorSpace
 	  //TODO deal with ICC profile exceptions
 	  
 	  //Let's get the ICC profile!
-	  PdfDataObject refObject = baseObject.getIndirectObject().getDataObject();
-	  if(refObject instanceof PdfArray) {
-		  PdfArray array = (PdfArray) refObject;
-		  if(array.size() > 1) {
-			  PdfDataObject profileRef = array.get(1);
-			  if(profileRef instanceof PdfStream) {
-				  IBuffer buffer = ((PdfStream)profileRef).getBody();
-				  byte[] data = buffer.getByteArray(0, buffer.getCapacity());
-				  ICC_Profile profile = ICC_Profile.getInstance(data);
-				  cs = new ICC_ColorSpace(profile);
-			  }
-		  }
-	  }
+	  PdfStream profileRef = getProfile();
+	  IBuffer buffer = ((PdfStream)profileRef).getBody();
+	  byte[] data = buffer.getByteArray(0, buffer.getCapacity());
+	  ICC_Profile profile = ICC_Profile.getInstance(data);
+	  cs = new ICC_ColorSpace(profile);
   }
   // </constructors>
 
@@ -100,7 +95,7 @@ public final class ICCBasedColorSpace
     IContentContext context
     )
   {
-    return new DeviceRGBColor(components); // FIXME:temporary hack...
+    return new DeviceNColor(components); // FIXME:temporary hack...
   }
 
   @Override
@@ -112,6 +107,20 @@ public final class ICCBasedColorSpace
     	return 0; //FIXME: verify -- return what value here?
     }
   }
+  
+	private static float[] getComponentValues(
+			Color<?> color) {
+		// TODO:normalize parameters!
+		List<PdfDirectObject> comps = color.getComponents();
+		float[] result = new float[comps.size()];
+		//these should contain PdfReals. TODO; deal with errors?
+		for (int i = 0; i < result.length; i++) {
+			assert comps.get(i) instanceof PdfNumber;
+			PdfNumber<?> number = (PdfNumber<?>)comps.get(i);
+			result[i] = number.getFloatValue();
+		}
+		return result;
+	}
 
 /* (non-Javadoc)
  * @see org.pdfclown.documents.contents.colorSpaces.ColorSpace#getDefaultColor()
@@ -122,15 +131,35 @@ public final class ICCBasedColorSpace
 @Override
   public Color<?> getDefaultColor(
     )
-  {return DeviceGrayColor.Default;} // FIXME:temporary hack...
+  {
+		//TODO normalize!
+		double[] components = new double[getComponentCount()];
+    for(
+      int index = 0,
+        length = components.length;
+      index < length;
+      index++
+      )
+    {components[index] = 0.0;}
+
+    return new DeviceNColor(components);
+  }
 
   @Override
   public Paint getPaint(
     Color<?> color
     )
   {
-    // FIXME: temporary hack
-    return new java.awt.Color(0,0,0);
+    // Convert to RGB representation
+		// TODO verify that it works
+  	int inputSize = color.getComponents().size();
+  	assert this.getComponentCount() == inputSize;
+  	if(inputSize != this.getComponentCount()) {
+  		//FIXME: copy the N values to fit this colorspace instead of just giving default color
+  		color = getDefaultColor();
+  	}
+		float[] rgb = cs.toRGB(getComponentValues(color));
+    return new java.awt.Color(rgb[0],rgb[1],rgb[2]);
   }
 
   public PdfStream getProfile(
