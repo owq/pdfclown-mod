@@ -26,13 +26,17 @@
 package org.pdfclown.documents.contents.colorSpaces;
 
 import java.awt.Paint;
+import java.awt.color.ICC_ColorSpace;
+import java.awt.color.ICC_Profile;
 import java.util.List;
 
 import org.pdfclown.PDF;
 import org.pdfclown.VersionEnum;
+import org.pdfclown.bytes.IBuffer;
 import org.pdfclown.documents.Document;
 import org.pdfclown.documents.contents.IContentContext;
 import org.pdfclown.objects.PdfArray;
+import org.pdfclown.objects.PdfDataObject;
 import org.pdfclown.objects.PdfDirectObject;
 import org.pdfclown.objects.PdfStream;
 import org.pdfclown.util.NotImplementedException;
@@ -50,13 +54,36 @@ public final class ICCBasedColorSpace
 {
   // <class>
   // <dynamic>
+  // <fields>
+	private ICC_ColorSpace cs;
+	//final 
+  // </fields>
   // <constructors>
   //TODO:IMPL new element constructor!
 
   ICCBasedColorSpace(
     PdfDirectObject baseObject
     )
-  {super(baseObject);}
+  {
+	  super(baseObject);
+	  //TODO use alternate space specified in header file if profile is not found?
+	  //TODO deal with ICC profile exceptions
+	  
+	  //Let's get the ICC profile!
+	  PdfDataObject refObject = baseObject.getIndirectObject().getDataObject();
+	  if(refObject instanceof PdfArray) {
+		  PdfArray array = (PdfArray) refObject;
+		  if(array.size() > 1) {
+			  PdfDataObject profileRef = array.get(1);
+			  if(profileRef instanceof PdfStream) {
+				  IBuffer buffer = ((PdfStream)profileRef).getBody();
+				  byte[] data = buffer.getByteArray(0, buffer.getCapacity());
+				  ICC_Profile profile = ICC_Profile.getInstance(data);
+				  cs = new ICC_ColorSpace(profile);
+			  }
+		  }
+	  }
+  }
   // </constructors>
 
   // <interface>
@@ -79,11 +106,20 @@ public final class ICCBasedColorSpace
   @Override
   public int getComponentCount()
   {
-    // FIXME: Auto-generated method stub
-    return 0;
+    if(cs != null) {
+    	return cs.getNumComponents();
+    } else {
+    	return 0; //FIXME: verify -- return what value here?
+    }
   }
 
-  @Override
+/* (non-Javadoc)
+ * @see org.pdfclown.documents.contents.colorSpaces.ColorSpace#getDefaultColor()
+ * [PDF 1.1] In a Lab or ICCBased color space, the initial color has all components equal to 
+	0.0 unless that falls outside the intervals specified by the space’s Range entry, 
+	in which case the nearest valid value is substituted.
+ */
+@Override
   public Color<?> getDefaultColor(
     )
   {return DeviceGrayColor.Default;} // FIXME:temporary hack...
