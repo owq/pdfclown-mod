@@ -25,7 +25,9 @@
 
 package org.pdfclown.documents.contents.objects;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
@@ -37,6 +39,7 @@ import org.pdfclown.documents.contents.ContentScanner;
 import org.pdfclown.documents.contents.ContentScanner.GraphicsState;
 import org.pdfclown.documents.contents.IContentContext;
 import org.pdfclown.documents.contents.fonts.Font;
+import org.pdfclown.documents.contents.fonts.Type1Font;
 import org.pdfclown.objects.PdfDirectObject;
 
 /**
@@ -145,6 +148,7 @@ public abstract class ShowText
     double contextHeight = context.getBox().getHeight();
     Font font = state.getFont();
     double fontSize = state.getFontSize();
+    double rise = state.getRise();
     double scale = state.getScale() / 100;
     double scaledFactor = Font.getScalingFactor(fontSize) * scale;
     double wordSpace = state.getWordSpace() * scale;
@@ -168,12 +172,13 @@ public abstract class ShowText
         {state.setCharSpace(newCharSpace);}
         charSpace = newCharSpace * scale;
       }
-      tm = (AffineTransform)state.getTlm().clone();
-      tm.translate(0, state.getLead());
+      TranslateTextToNextLine.Value.scan(state);
+      //tm = (AffineTransform)state.getTlm().clone();
+      //tm.translate(0, state.getLead());
     }
-    else
-    {tm = (AffineTransform)state.getTm().clone();}
+    tm = (AffineTransform)state.getTm().clone();
 
+    //Loop through text elements
     for(Object textElement : getValue())
     {
       if(textElement instanceof byte[]) // Text string.
@@ -181,34 +186,64 @@ public abstract class ShowText
         String textString = font.decode((byte[])textElement);
         for(char textChar : textString.toCharArray())
         {
-          double charWidth = font.getWidth(textChar) * scaledFactor;
-          
-          AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
-          double charHeight = font.getHeight(textChar,fontSize);
-          Rectangle2D charBox = new Rectangle2D.Double(
-            trm.getTranslateX(),
-            contextHeight - trm.getTranslateY() - font.getAscent(fontSize) * trm.getScaleY(),
-            charWidth * trm.getScaleX(),
-            charHeight * trm.getScaleY()
-            );
-          
+        	double charWidth = font.getWidth(textChar) * scaledFactor;
           if(textScanner != null)
           {
+            AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
+            double charHeight = font.getHeight(textChar,fontSize);
+            Rectangle2D charBox = new Rectangle2D.Double(
+              trm.getTranslateX(),
+              contextHeight - trm.getTranslateY() - font.getAscent(fontSize) * trm.getScaleY(),
+              charWidth * trm.getScaleX(),
+              charHeight * trm.getScaleY()
+              );
             /*
-              NOTE: The text rendering matrix is recomputed before each glyph is painted
-              during a text-showing operation.
-            */
-            
+            NOTE: The text rendering matrix is recomputed before each glyph is painted
+            during a text-showing operation.
+             */
             textScanner.scanChar(textChar,charBox);
             //.drawString(new Character(textChar).toString(), new System.Drawing.Font("Arial", 4), System.Drawing.Brushes.Black, charBox);
           } else {
-        	  Graphics2D g = state.getScanner().getRenderContext();
-//              java.awt.Font defFont = java.awt.Font.getFont("Arial");
-//              g.setFont(defFont);
-//              System.out.println(defFont);
-//              g.drawString(new Character(textChar).toString(), (float)charBox.getX(), (float)charBox.getY());
-        	 // g.drawString("H", (float)charBox.getX(), (float)charBox.getY());
+          	//AffineTransform scaleM = new AffineTransform(fontSize * scale, 0, 0, fontSize, 0, rise);
+          	//AffineTransform trm = (AffineTransform)tm.clone(); trm.concatenate(scaleM);
+          	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
+						double charHeight = font.getHeight(textChar, fontSize);
+						Rectangle2D charBox = new Rectangle2D.Double(trm.getTranslateX(),
+								contextHeight - trm.getTranslateY() - font.getAscent(fontSize)
+										* trm.getScaleY(), charWidth * trm.getScaleX(), charHeight
+										* trm.getScaleY());
+						java.awt.Font defFont = java.awt.Font.getFont("Arial");
+						Graphics2D g = state.getScanner().getRenderContext();
+						AffineTransform curr = (AffineTransform) g.getTransform().clone();
+						//System.out.println(charBox);
+						g.transform(ctm);
+						g.setFont(defFont);
+						System.out.println(charBox);
+						
+						g.setPaint(Color.BLACK);
+						g.drawString(new Character(textChar).toString(), (float)trm.getTranslateX(), (float)charBox.getY());
+						//g.drawString(new Character(textChar).toString(), (float)trm.getTranslateX(), (float)charBox.getY());
+						// g.drawString(new Character(textChar).toString(),
+						// (int)tm.getTranslateX(), (int)tm.getTranslateY());
+						// g.drawString("H", (float)charBox.getX(), (float)charBox.getY());
+						g.setTransform(curr);
           }
+          
+          //java.awt.Font javaFont = java.awt.Font.createFont(java.awt.Font.TYPE1_FONT, font.)
+          /*
+          if(font instanceof Type1Font) {
+          	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
+          	Graphics2D g = state.getScanner().getRenderContext();
+          	Type1Font font1 = (Type1Font)font;
+          	GlyphVector gv = font1.getGlyphVector(g.getFontRenderContext(), new Character(textChar).toString());
+          	//g.transform(tm);
+          	AffineTransform curr = (AffineTransform)g.getTransform().clone();
+          	g.transform(trm);
+          	//g.setColor(java.awt.Color.black);
+          	g.drawGlyphVector(gv, 0, 0);
+          	g.setTransform(curr);
+          }
+          */
 
           /*
             NOTE: After the glyph is painted, the text matrix is updated
