@@ -32,11 +32,12 @@ import java.util.List;
 
 import org.pdfclown.PDF;
 import org.pdfclown.VersionEnum;
-import org.pdfclown.bytes.IBuffer;
 import org.pdfclown.documents.Document;
 import org.pdfclown.documents.contents.IContentContext;
 import org.pdfclown.objects.PdfArray;
 import org.pdfclown.objects.PdfDirectObject;
+import org.pdfclown.objects.PdfInteger;
+import org.pdfclown.objects.PdfName;
 import org.pdfclown.objects.PdfNumber;
 import org.pdfclown.objects.PdfStream;
 import org.pdfclown.util.NotImplementedException;
@@ -55,8 +56,7 @@ public final class ICCBasedColorSpace
   // <class>
   // <dynamic>
   // <fields>
-	private ICC_ColorSpace cs;
-	//final 
+	private java.awt.color.ColorSpace cs;
   // </fields>
   // <constructors>
   //TODO:IMPL new element constructor!
@@ -66,15 +66,27 @@ public final class ICCBasedColorSpace
     )
   {
 	  super(baseObject);
-	  //TODO use alternate space specified in header file if profile is not found?
-	  //TODO deal with ICC profile exceptions
 	  
 	  //Let's get the ICC profile!
-	  PdfStream profileRef = getProfile();
-	  IBuffer buffer = ((PdfStream)profileRef).getBody();
-	  byte[] data = buffer.getByteArray(0, buffer.getCapacity());
-	  ICC_Profile profile = ICC_Profile.getInstance(data);
-	  cs = new ICC_ColorSpace(profile);
+	  ICC_Profile profile = null;
+	  byte[] data = getProfile().getBody().toByteArray();
+	  try {
+	  	profile = ICC_Profile.getInstance(data);
+	  } catch (IllegalArgumentException e) {
+	  	System.err.println("Invalid ICC profile?");
+	  	//TODO use ALTERNATE space specified in header file
+	  	int N = ((PdfInteger)this.getProfile().getHeader().resolve(PdfName.N)).getIntValue();
+	  	switch(N) {
+	  	case 1:
+	  		cs = java.awt.color.ColorSpace.getInstance(java.awt.color.ColorSpace.CS_GRAY);
+	  	case 3:
+	  		cs = java.awt.color.ColorSpace.getInstance(java.awt.color.ColorSpace.CS_sRGB);
+	  	case 4:
+	  		cs = java.awt.color.ColorSpace.getInstance(java.awt.color.ColorSpace.TYPE_CMYK);
+	  	}
+	  }
+	  if(profile != null)
+	  	cs = new ICC_ColorSpace(profile);
   }
   // </constructors>
 
@@ -92,25 +104,19 @@ public final class ICCBasedColorSpace
     IContentContext context
     )
   {
-    return new DeviceNColor(components); // FIXME:temporary hack...
+    return new DeviceNColor(components);
   }
 
   @Override
   public int getComponentCount()
   {
-    if(cs != null) {
-    	return cs.getNumComponents();
-    } else {
-    	return 0; //FIXME: verify -- return what value here?
-    }
+    return cs.getNumComponents();
   }
   
 	private static float[] getComponentValues(
 			Color<?> color) {
-		// TODO:normalize parameters!
 		List<PdfDirectObject> comps = color.getComponents();
 		float[] result = new float[comps.size()];
-		//these should contain PdfReals. TODO; deal with errors?
 		for (int i = 0; i < result.length; i++) {
 			assert comps.get(i) instanceof PdfNumber;
 			PdfNumber<?> number = (PdfNumber<?>)comps.get(i);
@@ -129,7 +135,7 @@ public final class ICCBasedColorSpace
   public Color<?> getDefaultColor(
     )
   {
-		//TODO normalize!
+		//TODO: ICC profiles that require different minimum values.
 		double[] components = new double[getComponentCount()];
     for(
       int index = 0,
@@ -137,7 +143,7 @@ public final class ICCBasedColorSpace
       index < length;
       index++
       )
-    {components[index] = 0.0;}
+    {components[index] = cs.getMinValue(index);}
 
     return new DeviceNColor(components);
   }
@@ -147,15 +153,21 @@ public final class ICCBasedColorSpace
     Color<?> color
     )
   {
-    // Convert to RGB representation
-		// TODO verify that it works
+  	float[] colorArr = getComponentValues(color);
   	int inputSize = color.getComponents().size();
-  	assert this.getComponentCount() == inputSize;
-  	if(inputSize != this.getComponentCount()) {
-  		//FIXME: copy the N values to fit this colorspace instead of just giving default color
-  		color = getDefaultColor();
+  	int currentSize = this.getComponentCount();
+  	assert inputSize >= currentSize;
+  	
+  	// Deal with inputSize not equal to numComponents in color space.
+  	if(inputSize < currentSize) {
+  		float[] newColorArr = new float[currentSize];
+  		for(int i = 0; i < inputSize; i++) {
+  			newColorArr[i] = colorArr[i];
+  		}
+  		colorArr = newColorArr;
   	}
-		float[] rgb = cs.toRGB(getComponentValues(color));
+  	// Convert to RGB representation
+		float[] rgb = cs.toRGB(colorArr);
     return new java.awt.Color(rgb[0],rgb[1],rgb[2]);
   }
 
