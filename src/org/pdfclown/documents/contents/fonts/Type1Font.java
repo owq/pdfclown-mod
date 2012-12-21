@@ -25,6 +25,12 @@
 
 package org.pdfclown.documents.contents.fonts;
 
+import java.awt.FontFormatException;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
+import java.awt.geom.AffineTransform;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.Hashtable;
 import java.util.Map;
 
@@ -83,6 +89,20 @@ public class Type1Font
     )
   {throw new NotImplementedException();}
   // </public>
+  
+  public GlyphVector getGlyphVector(FontRenderContext frc, String str) {
+  	PdfDictionary descriptor = getDescriptor();
+  	if(descriptor.containsKey(PdfName.FontFile3)) {
+  		PdfStream fontFileStream = (PdfStream)descriptor.resolve(PdfName.FontFile3);
+  		byte[] data = fontFileStream.getBody().toByteArray();
+  		ByteArrayInputStream fontStream = new ByteArrayInputStream(data);
+  		java.awt.Font javaFont = null;
+			javaFont = new java.awt.Font("Arial", java.awt.Font.PLAIN, 1);
+			//frc = new FontRenderContext(new AffineTransform(), true, true);
+			return javaFont.createGlyphVector(frc, str);
+  	}
+  	return null;
+  }
 
   // <protected>
   protected Map<ByteArray,Integer> getNativeEncoding(

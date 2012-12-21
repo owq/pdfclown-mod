@@ -27,8 +27,11 @@ package org.pdfclown.documents.contents.objects;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.Shape;
 import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
 import java.util.List;
@@ -176,7 +179,8 @@ public abstract class ShowText
       //tm = (AffineTransform)state.getTlm().clone();
       //tm.translate(0, state.getLead());
     }
-    tm = (AffineTransform)state.getTm().clone();
+    //tm = (AffineTransform)state.getTm().clone();
+    tm = new AffineTransform(state.getTm());
 
     //Loop through text elements
     for(Object textElement : getValue())
@@ -204,6 +208,7 @@ public abstract class ShowText
             textScanner.scanChar(textChar,charBox);
             //.drawString(new Character(textChar).toString(), new System.Drawing.Font("Arial", 4), System.Drawing.Brushes.Black, charBox);
           } else {
+          	/*
           	//AffineTransform scaleM = new AffineTransform(fontSize * scale, 0, 0, fontSize, 0, rise);
           	//AffineTransform trm = (AffineTransform)tm.clone(); trm.concatenate(scaleM);
           	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
@@ -218,32 +223,48 @@ public abstract class ShowText
 						//System.out.println(charBox);
 						g.transform(ctm);
 						g.setFont(defFont);
-						System.out.println(charBox);
+						
 						
 						g.setPaint(Color.BLACK);
-						g.drawString(new Character(textChar).toString(), (float)trm.getTranslateX(), (float)charBox.getY());
 						//g.drawString(new Character(textChar).toString(), (float)trm.getTranslateX(), (float)charBox.getY());
+						//g.drawString(new Character(textChar).toString(), 0, 0);
 						// g.drawString(new Character(textChar).toString(),
 						// (int)tm.getTranslateX(), (int)tm.getTranslateY());
 						// g.drawString("H", (float)charBox.getX(), (float)charBox.getY());
 						g.setTransform(curr);
+						*/
           }
           
           //java.awt.Font javaFont = java.awt.Font.createFont(java.awt.Font.TYPE1_FONT, font.)
-          /*
           if(font instanceof Type1Font) {
+          	double charHeight = font.getHeight(textChar, fontSize);
           	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
+          	Rectangle2D charBox = new Rectangle2D.Double(trm.getTranslateX(),
+								contextHeight - trm.getTranslateY() - font.getAscent(fontSize)
+										* trm.getScaleY(), charWidth * trm.getScaleX(), charHeight
+										* trm.getScaleY());
           	Graphics2D g = state.getScanner().getRenderContext();
           	Type1Font font1 = (Type1Font)font;
           	GlyphVector gv = font1.getGlyphVector(g.getFontRenderContext(), new Character(textChar).toString());
+          	double normalWidth = gv.getVisualBounds().getWidth();
+          	double normalHeight = gv.getVisualBounds().getWidth();
+          	double widthRatio = charWidth / normalWidth;
+          	//glyph space
+          	AffineTransform glyphTM = AffineTransform.getScaleInstance(widthRatio, -charHeight/normalHeight);
+          	Shape thatShape = glyphTM.createTransformedShape(gv.getGlyphOutline(0));
+          	//TODO concatenate to improve perf
+          	//text space
+          	thatShape = tm.createTransformedShape(thatShape);
+          	//gv.getOutline().
           	//g.transform(tm);
           	AffineTransform curr = (AffineTransform)g.getTransform().clone();
-          	g.transform(trm);
-          	//g.setColor(java.awt.Color.black);
-          	g.drawGlyphVector(gv, 0, 0);
-          	g.setTransform(curr);
+          	//g.transform(ctm);
+          	g.setColor(java.awt.Color.black);
+          	g.fill(thatShape);
+          	//g.draw(gv.getOutline((float)trm.getTranslateX(), (float)charBox.getY()));
+          	//g.drawGlyphVector(gv, (float)trm.getTranslateX(), (float)charBox.getY());
+          	//g.setTransform(curr);
           }
-          */
 
           /*
             NOTE: After the glyph is painted, the text matrix is updated
@@ -252,7 +273,7 @@ public abstract class ShowText
           tm.translate(charWidth + charSpace + (textChar == ' ' ? wordSpace : 0), 0);
         }
       }
-      else // Text position adjustment.
+      else // Text position adjustment. WHAT IS THIS?
       {tm.translate(-((Number)textElement).doubleValue() * scaledFactor, 0);}
     }
 
