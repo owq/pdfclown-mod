@@ -30,6 +30,7 @@ import java.awt.Graphics2D;
 import java.awt.Shape;
 import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.GeneralPath;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
@@ -152,8 +153,8 @@ public abstract class ShowText
     Font font = state.getFont();
     double fontSize = state.getFontSize();
     double rise = state.getRise();
-    double scale = state.getScale() / 100;
-    double scaledFactor = Font.getScalingFactor(fontSize) * scale;
+    double scale = state.getScale() / 100; //horizontal scaling
+    double scaledFactor = Font.getScalingFactor(fontSize) * scale; // em per units?
     double wordSpace = state.getWordSpace() * scale;
     double charSpace = state.getCharSpace() * scale;
     AffineTransform ctm = (AffineTransform)state.getCtm().clone();
@@ -176,10 +177,7 @@ public abstract class ShowText
         charSpace = newCharSpace * scale;
       }
       TranslateTextToNextLine.Value.scan(state);
-      //tm = (AffineTransform)state.getTlm().clone();
-      //tm.translate(0, state.getLead());
     }
-    //tm = (AffineTransform)state.getTm().clone();
     tm = new AffineTransform(state.getTm());
 
     //Loop through text elements
@@ -191,6 +189,7 @@ public abstract class ShowText
         for(char textChar : textString.toCharArray())
         {
         	double charWidth = font.getWidth(textChar) * scaledFactor;
+        	assert font.getWidth(textChar) != 0;
           if(textScanner != null)
           {
             AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
@@ -206,64 +205,27 @@ public abstract class ShowText
             during a text-showing operation.
              */
             textScanner.scanChar(textChar,charBox);
-            //.drawString(new Character(textChar).toString(), new System.Drawing.Font("Arial", 4), System.Drawing.Brushes.Black, charBox);
-          } else {
-          	/*
-          	//AffineTransform scaleM = new AffineTransform(fontSize * scale, 0, 0, fontSize, 0, rise);
-          	//AffineTransform trm = (AffineTransform)tm.clone(); trm.concatenate(scaleM);
-          	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
-						double charHeight = font.getHeight(textChar, fontSize);
-						Rectangle2D charBox = new Rectangle2D.Double(trm.getTranslateX(),
-								contextHeight - trm.getTranslateY() - font.getAscent(fontSize)
-										* trm.getScaleY(), charWidth * trm.getScaleX(), charHeight
-										* trm.getScaleY());
-						java.awt.Font defFont = java.awt.Font.getFont("Arial");
-						Graphics2D g = state.getScanner().getRenderContext();
-						AffineTransform curr = (AffineTransform) g.getTransform().clone();
-						//System.out.println(charBox);
-						g.transform(ctm);
-						g.setFont(defFont);
-						
-						
-						g.setPaint(Color.BLACK);
-						//g.drawString(new Character(textChar).toString(), (float)trm.getTranslateX(), (float)charBox.getY());
-						//g.drawString(new Character(textChar).toString(), 0, 0);
-						// g.drawString(new Character(textChar).toString(),
-						// (int)tm.getTranslateX(), (int)tm.getTranslateY());
-						// g.drawString("H", (float)charBox.getX(), (float)charBox.getY());
-						g.setTransform(curr);
-						*/
           }
           
-          //java.awt.Font javaFont = java.awt.Font.createFont(java.awt.Font.TYPE1_FONT, font.)
           if(font instanceof Type1Font) {
-          	double charHeight = font.getHeight(textChar, fontSize);
-          	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm);
-          	Rectangle2D charBox = new Rectangle2D.Double(trm.getTranslateX(),
-								contextHeight - trm.getTranslateY() - font.getAscent(fontSize)
-										* trm.getScaleY(), charWidth * trm.getScaleX(), charHeight
-										* trm.getScaleY());
           	Graphics2D g = state.getScanner().getRenderContext();
           	Type1Font font1 = (Type1Font)font;
           	GlyphVector gv = font1.getGlyphVector(g.getFontRenderContext(), new Character(textChar).toString());
           	double normalWidth = gv.getVisualBounds().getWidth();
-          	double normalHeight = gv.getVisualBounds().getWidth();
-          	double widthRatio = charWidth / normalWidth;
-          	//glyph space
-          	AffineTransform glyphTM = AffineTransform.getScaleInstance(widthRatio, -charHeight/normalHeight);
-          	Shape thatShape = glyphTM.createTransformedShape(gv.getGlyphOutline(0));
-          	//TODO concatenate to improve perf
-          	//text space
-          	thatShape = tm.createTransformedShape(thatShape);
-          	//gv.getOutline().
-          	//g.transform(tm);
-          	AffineTransform curr = (AffineTransform)g.getTransform().clone();
-          	//g.transform(ctm);
+          	
+          	//text space transform to device space transform
+          	AffineTransform scaleM = new AffineTransform(fontSize * scale, 0, 0, fontSize, 0, rise);
+          	AffineTransform trm = (AffineTransform)ctm.clone(); trm.concatenate(tm); trm.concatenate(scaleM);
+          	//glyph space transform
+          	AffineTransform glyphTM = AffineTransform.getScaleInstance(charWidth / normalWidth, -1);
+          	trm.concatenate(glyphTM);
+          	//TODO verify. (do transform on shape vs do transform on Graphics2D: which has greater cost?)
+          	
+          	AffineTransform curr = g.getTransform();
+          	g.setTransform(trm);
           	g.setColor(java.awt.Color.black);
-          	g.fill(thatShape);
-          	//g.draw(gv.getOutline((float)trm.getTranslateX(), (float)charBox.getY()));
-          	//g.drawGlyphVector(gv, (float)trm.getTranslateX(), (float)charBox.getY());
-          	//g.setTransform(curr);
+          	g.fill(gv.getOutline());
+          	g.setTransform(curr);
           }
 
           /*
@@ -273,8 +235,11 @@ public abstract class ShowText
           tm.translate(charWidth + charSpace + (textChar == ' ' ? wordSpace : 0), 0);
         }
       }
-      else // Text position adjustment. WHAT IS THIS?
-      {tm.translate(-((Number)textElement).doubleValue() * scaledFactor, 0);}
+      else // Text position adjustment. WHAT IS THIS? Kerning? ShowAdjustedText
+      {
+      	tm.translate(-((Number)textElement).doubleValue() * scaledFactor, 0);
+      	assert this instanceof ShowAdjustedText;
+      }
     }
 
     if(textScanner == null)

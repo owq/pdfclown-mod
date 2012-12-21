@@ -25,6 +25,7 @@
 
 package org.pdfclown.documents.contents.fonts;
 
+import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
@@ -40,8 +41,11 @@ import org.pdfclown.documents.Document;
 import org.pdfclown.objects.PdfDataObject;
 import org.pdfclown.objects.PdfDictionary;
 import org.pdfclown.objects.PdfDirectObject;
+import org.pdfclown.objects.PdfInteger;
 import org.pdfclown.objects.PdfName;
 import org.pdfclown.objects.PdfStream;
+import org.pdfclown.objects.PdfString;
+import org.pdfclown.objects.PdfNumber;
 import org.pdfclown.util.BiMap;
 import org.pdfclown.util.ByteArray;
 import org.pdfclown.util.ConvertUtils;
@@ -91,13 +95,39 @@ public class Type1Font
   // </public>
   
   public GlyphVector getGlyphVector(FontRenderContext frc, String str) {
+  	//From Sun
+  	java.awt.Font javaFont = null;
   	PdfDictionary descriptor = getDescriptor();
+  	int flags = -1;
+  	String fontName = "";
+  	if(descriptor.containsKey(PdfName.Flags)) {
+  		flags = ((PdfInteger)descriptor.resolve(PdfName.Flags)).getIntValue();
+  	}
+  	if(descriptor.containsKey(PdfName.FontName)) {
+  		fontName = ((PdfName)descriptor.resolve(PdfName.FontName)).toString();
+  	}
+    int style = (descriptor.containsKey(PdfName.Flags)) ? Font.BOLD : Font.PLAIN;
+
+    if (fontName.indexOf ("Bold") > 0) {
+        style |= Font.BOLD;
+    }
+    if (((PdfNumber)descriptor.resolve(PdfName.ItalicAngle)).getIntValue() != 0) {
+        style |= Font.ITALIC;
+    }
+    if ((flags & 1) == 1) { // fixed width
+       javaFont = new java.awt.Font ("Monospaced", style, 1);
+    } else if ((flags & (1 << (2-1))) != 0) {  // serif font
+    	 javaFont = new java.awt.Font ("Serif", style, 1);
+    } else {
+    	 javaFont = new java.awt.Font ("Sans-serif", style, 1);
+    }
+   	assert style == 1;
+  	
   	if(descriptor.containsKey(PdfName.FontFile3)) {
   		PdfStream fontFileStream = (PdfStream)descriptor.resolve(PdfName.FontFile3);
   		byte[] data = fontFileStream.getBody().toByteArray();
   		ByteArrayInputStream fontStream = new ByteArrayInputStream(data);
-  		java.awt.Font javaFont = null;
-			javaFont = new java.awt.Font("Arial", java.awt.Font.PLAIN, 1);
+  		//java.awt.Font javaFont = null;
 			//frc = new FontRenderContext(new AffineTransform(), true, true);
 			return javaFont.createGlyphVector(frc, str);
   	}
