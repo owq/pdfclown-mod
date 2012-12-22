@@ -73,8 +73,14 @@ public final class ICCBasedColorSpace
 	  try {
 	  	profile = ICC_Profile.getInstance(data);
 	  } catch (IllegalArgumentException e) {
+	  	//This exception should be quite unlikely to happen, I guess?
 	  	System.err.println("Invalid ICC profile?");
 	  	//TODO use ALTERNATE space specified in header file
+	  	/*
+	  	 * If this entry is omitted and the application  does  not  understand  the  ICC  profile  data,  
+	  	 * the  color  space  used  is DeviceGray, DeviceRGB, or DeviceCMYK, depending on whether the 
+	  	 * value of N is 1, 3, or 4, respectively. [PDF:1.7:4.16]
+	  	 */
 	  	int N = ((PdfInteger)this.getProfile().getHeader().resolve(PdfName.N)).getIntValue();
 	  	switch(N) {
 	  	case 1:

@@ -25,6 +25,14 @@
 
 package org.pdfclown.documents.contents.fonts;
 
+import java.awt.Component;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Shape;
+import java.awt.font.FontRenderContext;
+import java.awt.font.GlyphVector;
+import java.awt.geom.AffineTransform;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -492,6 +500,61 @@ public abstract class Font
       return EnumSet.noneOf(FlagsEnum.class);
 
     return FlagsEnum.toEnumSet(flagsObject.getRawValue());
+  }
+  
+  /**
+   * Create glyph shape of desired width
+   * @param g Graphics context
+   * @param c Character, of course
+   * @param charWidth desired width
+   * @return vector
+   */
+  public Shape getGlyphShape(FontRenderContext frc, char c) {
+  	java.awt.Font font = getJavaFont();
+  	GlyphVector gv = font.createGlyphVector(frc, new char[]{c});
+  	int pointSize = font.getSize();
+  	double expectedWidth = this.getWidth(c, pointSize);
+  	double fontWidth = gv.getGlyphMetrics(0).getAdvanceX(); //width at pointSize
+  	
+  	//Glyph space transform (width scaling to expected width in document)
+  	//flip along x-axis (to Java space)
+  	AffineTransform glyphTM = AffineTransform.getScaleInstance(expectedWidth / fontWidth, -1);
+  	//Normalize to point size 1
+  	glyphTM.scale(1.0/pointSize, 1.0/pointSize); 
+  	
+  	return glyphTM.createTransformedShape(gv.getOutline());
+  }
+  
+  /**
+   * Create default java font
+   * @return relevant java font corresponding to this font object
+   */
+  private java.awt.Font getJavaFont() {
+		java.awt.Font javaFont;
+		int baseFontSize = 1000; // possibly overkill?
+		int style = java.awt.Font.PLAIN; // default style
+		EnumSet<FlagsEnum> flagSet = getFlags();
+		String fontName = this.getName().toLowerCase();
+
+		// Can coexist
+		if (flagSet.contains(FlagsEnum.ForceBold) || fontName.contains("bold")) {
+			style |= java.awt.Font.BOLD;
+		}
+		if (flagSet.contains(FlagsEnum.Italic) || fontName.contains("italic")) {
+			style |= java.awt.Font.ITALIC; // TODO use italic angle instead
+		}
+
+		// Mutually exclusive
+		if (flagSet.contains(FlagsEnum.FixedPitch)) {
+			javaFont = new java.awt.Font("Monospaced", style, baseFontSize);
+		} else if (flagSet.contains(FlagsEnum.Serif)) {
+			javaFont = new java.awt.Font("Serif", style, baseFontSize);
+		} else if (flagSet.contains(FlagsEnum.Script)) {
+			javaFont = new java.awt.Font("Script", style, baseFontSize);
+		} else {
+			javaFont = new java.awt.Font("Sans-serif", style, baseFontSize);
+		}
+		return javaFont;
   }
 
   /**
